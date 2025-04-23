@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WTB</title>
+  <style>
+    /* Reset et styles de base */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+    body {
+      background-color: #f8f8f8;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    /* 1) Full-screen */
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 2) Container qui remplit l’écran */
+    .container {
+      width: 100%;
+      height: 100%;
+      padding: 0 15px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header sans bannière noire, texte WTB en noir */
+    header {
+      background: none;
+      color: #000;
+      padding: 15px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .logo h1 {
+      color: #000;
+      font-size: 1.8rem;
+    }
+
+    /* 3) Grille de sneakers full-screen */
+    .sneakers-container {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-content: flex-start;
+      gap: 20px;
+      overflow-y: auto;
+      padding: 20px 0;
+    }
+    .sneaker-card {
+      background-color: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+    }
+    .sneaker-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      object-position: center;
+    }
+    .sneaker-info {
+      padding: 15px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .sneaker-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .sneaker-sku {
+      color: #777;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .sneaker-sizes {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .size-option {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .size-option:last-child {
+      border-bottom: none;
+    }
+
+    /* On ne veut plus du bouton sous chaque carte */
+    .sneaker-card .wts-button {
+      display: none !important;
+    }
+
+    /* Loading & no-results */
+    .loading, .no-results {
+      text-align: center;
+      padding: 40px 0;
+      font-size: 18px;
+      color: #777;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      margin: 30px auto;
+      border: 4px solid rgba(0,0,0,0.1);
+      border-radius: 50%;
+      border-top-color: #000;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Bouton global avec logo Facebook en noir */
+    #global-wts-button {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: none;
+      color: #000;            /* la couleur du SVG */
+      padding: 8px;
+      border: none;
+      z-index: 200;
+      cursor: pointer;
+    }
+    #global-wts-button svg {
+      display: block;
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+    #global-wts-button:hover {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <div class="logo">
+        <h1>WTB</h1>
+      </div>
+      <!-- Bouton global Facebook vers votre profil/messages -->
+      <a id="global-wts-button"
+         href="https://www.facebook.com/lael.picaud/"
+         target="_blank"
+         aria-label="Aller à ma messagerie Facebook">
+        <!-- SVG du logo Facebook en noir -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512">
+          <path d="M279.14 288l14.22-92.66h-88.91V132.3
+                   c0-25.35 12.42-50.06 52.24-50.06H293V6.26
+                   S259.5 0 225.36 0
+                   c-73.22 0-121.13 44.38-121.13 124.72
+                   v70.62H22.89V288h81.34v224h100.2V288z"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Chargement des sneakers...</p>
+    </div>
+
+    <div id="sneakers-container" class="sneakers-container" style="display: none;"></div>
+
+    <div id="no-results" class="no-results" style="display: none;">
+      <p>Aucun résultat trouvé</p>
+    </div>
+  </main>
+
+  <script>
+    // Configuration
+    const AIRTABLE_TOKEN   = 'patP0yLF5ZaiGPuox.8997a563b382160711264ffa9964977d26cc6c5227e8ada15f175e7e6922c810';
+    const AIRTABLE_BASE_ID = 'appnIVL08afkB4MHw';
+    const AIRTABLE_TABLE_ID= 'tblKFLmsFzWGuHG7h';
+
+    // DOM Elements
+    const loadingEl           = document.getElementById('loading');
+    const sneakersContainerEl = document.getElementById('sneakers-container');
+    const noResultsEl         = document.getElementById('no-results');
+
+    // Fetch depuis Airtable
+    async function fetchSneakers() {
+      try {
+        const resp = await fetch(
+          `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_ID}?view=viwCjbBMDe3vkIg3O`,
+          {
+            headers: {
+              'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        if (!resp.ok) throw new Error('Erreur Airtable');
+        const data = await resp.json();
+        return data.records;
+      } catch (err) {
+        console.error(err);
+        return [];
+      }
+    }
+
+    // Grouper par SKU
+    function groupBySKU(records) {
+      const grouped = {};
+      records.forEach(r => {
+        const f   = r.fields;
+        const sku = f.SKU || '';
+        if (!sku) return;
+        if (!grouped[sku]) {
+          grouped[sku] = {
+            sku,
+            name : f.Nom || '',
+            photo: f.Photo?.[0]?.url || null,
+            sizes: []
+          };
+        }
+        grouped[sku].sizes.push({
+          size : f.Pointure || '',
+          price: f.Prix || ''
+        });
+      });
+      return Object.values(grouped);
+    }
+
+    // Affichage
+    function renderSneakers(list) {
+      sneakersContainerEl.innerHTML = '';
+      if (list.length === 0) {
+        loadingEl.style.display            = 'none';
+        sneakersContainerEl.style.display  = 'none';
+        noResultsEl.style.display          = 'block';
+        return;
+      }
+      list.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'sneaker-card';
+        let sizesHTML = '';
+        s.sizes.forEach(sz => {
+          sizesHTML += `
+            <div class="size-option">
+              <span>Taille ${sz.size || 'N/A'}</span>
+              <span>${sz.price || 'N/A'}€</span>
+            </div>
+          `;
+        });
+        card.innerHTML = `
+          ${s.photo ? `<img src="${s.photo}" alt="${s.name}" class="sneaker-image">` : ''}
+          <div class="sneaker-info">
+            <div class="sneaker-name">${s.name || 'N/A'}</div>
+            <div class="sneaker-sku">SKU: ${s.sku}</div>
+            <div class="sneaker-sizes">${sizesHTML}</div>
+          </div>
+        `;
+        sneakersContainerEl.appendChild(card);
+      });
+      loadingEl.style.display           = 'none';
+      sneakersContainerEl.style.display = 'flex';
+      noResultsEl.style.display         = 'none';
+    }
+
+    // Init
+    async function init() {
+      loadingEl.style.display           = 'block';
+      sneakersContainerEl.style.display = 'none';
+      noResultsEl.style.display         = 'none';
+
+      const records      = await fetchSneakers();
+      const sneakersData = groupBySKU(records);
+      renderSneakers(sneakersData);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
